@@ -4,8 +4,8 @@ export const endpoints = {
   product: {
     getAll: productsURL,
     create: productsURL,
-    details: productsURL,
-    update: productsURL,
-    delete: productsURL,
+    details: (id: string) => `${productsURL}/${id}`,
+    update: (id: string) => `${productsURL}/${id}`,
+    delete: (id: string) => `${productsURL}/${id}`,
   },
 };

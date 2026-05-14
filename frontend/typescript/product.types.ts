@@ -15,3 +15,11 @@ export interface ProductsResponse {
   total: number;
   data: Product[];
 }
+
+export interface ProductPayload {
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  inStock: boolean;
+}
