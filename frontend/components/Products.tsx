@@ -9,37 +9,27 @@ import {
   CircularProgress,
   Dialog,
   DialogTitle,
-  IconButton,
   Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Typography,
 } from "@mui/material";
-import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
-import EditIcon from "@mui/icons-material/Edit";
+import AddIcon from "@mui/icons-material/Add";
 import AddEditProductForm from "@/components/AddEditProductForm";
+import ConfirmDialog from "@/ui/ConfirmDialog";
+import ProductEmptyState from "@/components/ProductEmptyState";
+import ProductList from "@/components/ProductList";
+import ProductWrapper from "@/ui/ProductWrapper";
 import {
   useCreateProduct,
   useDeleteProduct,
   useProducts,
   useUpdateProduct,
 } from "@/react-query/hooks/useProducts";
+import { useSearch } from "@/utils/SearchContext";
 import type { Product } from "@/typescript/product.types";
 import {
   productCategories,
   type ProductFormValues,
 } from "@/typescript/product.schema";
-
-const formatPrice = (price: number) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(price);
 
 const emptyProductForm: ProductFormValues = {
   name: "",
@@ -63,8 +53,27 @@ const Products = () => {
   const [editingProduct, setEditingProduct] = React.useState<Product | null>(
     null
   );
+  const [deletingProduct, setDeletingProduct] = React.useState<Product | null>(
+    null
+  );
   const [isFormOpen, setIsFormOpen] = React.useState(false);
+  const { searchQuery } = useSearch();
   const products = data?.data ?? [];
+
+  const filteredProducts = products.filter(
+    (product) =>
+      (product.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (product.description || "")
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
+      (product.category || "")
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase())
+  );
+
+  const inStockCount = filteredProducts.filter((product) => product.inStock)
+    .length;
+  const outOfStockCount = filteredProducts.length - inStockCount;
   const formDefaultValues = editingProduct
     ? {
         name: editingProduct.name,
@@ -90,14 +99,26 @@ const Products = () => {
     setIsFormOpen(false);
   };
 
-  const handleDelete = (id: string) => {
-    const shouldDelete = window.confirm(
-      "Are you sure you want to delete this product?"
-    );
+  const handleDelete = (product: Product) => {
+    setDeletingProduct(product);
+  };
 
-    if (shouldDelete) {
-      deleteProductMutation.mutate(id);
+  const handleCloseDeleteDialog = () => {
+    if (!deleteProductMutation.isPending) {
+      setDeletingProduct(null);
     }
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deletingProduct) {
+      return;
+    }
+
+    deleteProductMutation.mutate(deletingProduct._id, {
+      onSuccess: () => {
+        setDeletingProduct(null);
+      },
+    });
   };
 
   const handleSubmitProduct = (values: ProductFormValues) => {
@@ -120,113 +141,97 @@ const Products = () => {
     });
   };
 
-  const actionError =
-    createProductMutation.error ||
-    updateProductMutation.error ||
-    deleteProductMutation.error;
   const isSaving =
     createProductMutation.isPending || updateProductMutation.isPending;
 
   return (
-    <Box
-      component="main"
-      className="w-full px-4 pb-6 pt-4 sm:px-6 lg:px-8 h-auto min-h-[100vh]"
-    >
-      <Box className="mx-auto w-full max-w-6xl">
-        <Box className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <ProductWrapper>
+      <Box className="product-inner">
+        <Box className="product-header">
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
               Products
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {data?.total ?? 0} products in inventory
+              Manage your store inventory
             </Typography>
+            <Box className="product-stats">
+              <Chip
+                label={`${filteredProducts.length} ${
+                  searchQuery ? "found" : "total"
+                }`}
+                size="small"
+              />
+              <Chip
+                label={`${inStockCount} in stock`}
+                color="success"
+                size="small"
+                variant="outlined"
+              />
+              <Chip
+                label={`${outOfStockCount} out of stock`}
+                size="small"
+                variant="outlined"
+              />
+            </Box>
           </Box>
-          <Button variant="contained" onClick={handleAdd}>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>
             Add Product
           </Button>
         </Box>
 
-        {actionError instanceof Error && (
-          <Alert severity="error" className="mb-4">
-            {actionError.message}
-          </Alert>
-        )}
-
         {isLoading ? (
-          <Paper className="flex min-h-56 items-center justify-center p-6">
+          <Paper className="product-loading-panel">
             <CircularProgress />
           </Paper>
         ) : isError ? (
           <Alert severity="error">
             {error instanceof Error ? error.message : "Failed to load products"}
           </Alert>
-        ) : products.length === 0 ? (
-          <Paper className="p-6">
-            <Typography variant="body1">No products found.</Typography>
-          </Paper>
+        ) : filteredProducts.length === 0 ? (
+          searchQuery ? (
+            <Paper
+              sx={{
+                p: 8,
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 2,
+                borderRadius: 2,
+                bgcolor: "background.paper",
+                border: "1px dashed",
+                borderColor: "divider",
+              }}
+            >
+              <Typography variant="h6" color="text.secondary">
+                No products match &quot;{searchQuery}&quot;
+              </Typography>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => {
+                  const input = document.querySelector(
+                    'input[aria-label="search products"]'
+                  );
+                  if (input instanceof HTMLInputElement) {
+                    input.focus();
+                  }
+                }}
+              >
+                Try a different search term
+              </Button>
+            </Paper>
+          ) : (
+            <ProductEmptyState onAdd={handleAdd} />
+          )
         ) : (
-          <TableContainer component={Paper}>
-            <Table sx={{ minWidth: 860 }} aria-label="products table">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Description</TableCell>
-                  <TableCell>Category</TableCell>
-                  <TableCell align="right">Price</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Created</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {products.map((product) => (
-                  <TableRow key={product._id} hover>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {product.name}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{product.description || "-"}</TableCell>
-                    <TableCell>{product.category || "-"}</TableCell>
-                    <TableCell align="right">
-                      {formatPrice(product.price)}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={product.inStock ? "In stock" : "Out of stock"}
-                        color={product.inStock ? "success" : "default"}
-                        size="small"
-                        variant={product.inStock ? "filled" : "outlined"}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      {new Date(product.createdAt).toLocaleDateString("en-IN")}
-                    </TableCell>
-                    <TableCell align="right">
-                      <IconButton
-                        aria-label={`Edit ${product.name}`}
-                        color="primary"
-                        size="small"
-                        onClick={() => handleEdit(product)}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        aria-label={`Delete ${product.name}`}
-                        color="error"
-                        size="small"
-                        disabled={deleteProductMutation.isPending}
-                        onClick={() => handleDelete(product._id)}
-                      >
-                        <DeleteOutlinedIcon fontSize="small" />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          <ProductList
+            products={filteredProducts}
+            isDeleting={deleteProductMutation.isPending}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
         )}
 
         <Dialog
@@ -240,14 +245,26 @@ const Products = () => {
           </DialogTitle>
           <AddEditProductForm
             defaultValues={formDefaultValues}
+            productId={editingProduct?._id}
             isSubmitting={isSaving}
-            submitLabel={editingProduct ? "Save" : "Create"}
+            submitLabel={editingProduct ? "Save Changes" : "Create Product"}
             onCancel={handleCloseForm}
             onSubmit={handleSubmitProduct}
           />
         </Dialog>
+        <ConfirmDialog
+          open={Boolean(deletingProduct)}
+          title="Delete Product"
+          description={`Are you sure you want to delete ${
+            deletingProduct?.name ?? "this product"
+          }?`}
+          confirmLabel="Delete"
+          isLoading={deleteProductMutation.isPending}
+          onCancel={handleCloseDeleteDialog}
+          onConfirm={handleConfirmDelete}
+        />
       </Box>
-    </Box>
+    </ProductWrapper>
   );
 };
 

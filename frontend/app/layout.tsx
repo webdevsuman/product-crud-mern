@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Wrapper from "@/layout/Wrapper";
 import TanstackProvider from "@/react-query/TanstackProvider";
+import { SearchProvider } from "@/utils/SearchContext";
+import { AppThemeProvider } from "@/theme/ThemeContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,7 +33,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <TanstackProvider>
-          <Wrapper>{children}</Wrapper>
+          <AppThemeProvider>
+            <SearchProvider>
+              <Wrapper>{children}</Wrapper>
+            </SearchProvider>
+          </AppThemeProvider>
         </TanstackProvider>
       </body>
     </html>

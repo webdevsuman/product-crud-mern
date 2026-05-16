@@ -16,6 +16,18 @@ export interface ProductsResponse {
   data: Product[];
 }
 
+export interface ProductDetailsResponse {
+  status: boolean;
+  message: string;
+  data: Product;
+}
+
+export interface ProductMutationResponse {
+  status: boolean;
+  message: string;
+  data?: Product;
+}
+
 export interface ProductPayload {
   name: string;
   description: string;
